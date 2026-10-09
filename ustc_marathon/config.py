@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from .errors import Problem
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path.cwd().resolve()
 RUNTIME = ROOT / "runtime"
 CONFIG_PATH = ROOT / "config.toml"
 

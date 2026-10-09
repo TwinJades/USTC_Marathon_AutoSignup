@@ -3,7 +3,7 @@ async ({path, params, timeout}) => {
     '/item/scItem/queryApplyingMarathonItem', '/item/scItem/queryById',
     '/lib/scItemProgramme/selectEvaluationByItemId',
     '/item/scItem/marathon/myInfo', '/item/scItemRegistration/getOptions',
-    '/item/scParticipateItem/list'
+    '/item/scParticipateItem/list?queryCatelog=0'
   ]);
   if (!permitted.has(path) && !/^\/item\/scItem\/marathon\/my\/[A-Za-z0-9_-]+$/.test(path)) {
     throw new Error('查询路径未获得允许');

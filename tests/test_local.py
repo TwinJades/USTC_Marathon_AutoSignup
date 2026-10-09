@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 import unittest
 import uuid
 from pydantic import ValidationError
@@ -84,6 +87,14 @@ class PersistenceChecks(unittest.TestCase):
 
 
 class InputBoundaryChecks(unittest.TestCase):
+    def test_chinese_cli_output_uses_utf8_in_redirected_windows_console(self):
+        environment = os.environ.copy()
+        environment["PYTHONIOENCODING"] = "cp1252"
+        result = subprocess.run([sys.executable, "-m", "ustc_marathon", "--help"], cwd=ROOT,
+                                env=environment, capture_output=True, check=True,
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+        self.assertIn("科大马拉松监测与自动报名程序", result.stdout.decode("utf-8"))
+
     def test_unknown_occupancy_cannot_be_interpreted_as_available(self):
         for value in (None, True, False, -1, 1.5, "unknown", ""):
             with self.assertRaises(Problem):

@@ -14,7 +14,7 @@ from .state import Journal
 
 CHINA = timezone(timedelta(hours=8))
 LIST_PATH = "/item/scItem/queryApplyingMarathonItem"
-OWN_PATH = "/item/scParticipateItem/list"
+OWN_PATH = "/item/scParticipateItem/list?queryCatelog=0"
 
 
 def required_text(data: dict, key: str) -> str:
@@ -120,7 +120,7 @@ class Website:
         return targets
 
     async def own_records(self) -> dict[str, dict]:
-        return {row["id"]: row for row in await self.pages(OWN_PATH, queryCatelog=0)}
+        return {row["id"]: row for row in await self.pages(OWN_PATH)}
 
     async def availability(self, target: Target) -> Availability:
         detail = dictionary(await self.browser.get("/item/scItem/queryById", id=target.id))

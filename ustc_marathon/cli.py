@@ -81,6 +81,8 @@ async def execute(command: str, config: Config, journal: Journal) -> None:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.excepthook = error_hook
     parser = argparse.ArgumentParser(description="科大马拉松监测与自动报名程序")
     parser.add_argument("--version", action="version", version=__version__)
