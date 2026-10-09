@@ -1,116 +1,105 @@
 # 科大马拉松监测与自动报名程序
 
-在 Windows 上监测[青春科大马拉松报名页面](https://young.ustc.edu.cn/login/sc-wisdom-group-learning/myproject/marathonProject)，按照选定比赛的优先顺序检查名额，取得名额后立即提交参赛资料。完成一场比赛并核实网站记录后，结束全部监测。
+在 Windows 上监测科大马拉松比赛，按配置顺序检查报名状态，取得名额后立即填写参赛资料。完成一场比赛并核实网站记录后结束监测。
 
-程序使用独立 Chromium 浏览器、网站自身的查询机制和网页报名按钮。姓名与学号读取当前账户，参赛校区读取目标比赛。
+## 下载与使用
 
-## 安装
+从 [GitHub Releases](https://github.com/TwinJades/USTC_Marathon_AutoSignup/releases) 下载 Windows x64 ZIP，解压到可写目录。本机需要安装 Chrome 或 Edge。
 
-需要 Windows 10/11 和 Python 3.12。在项目目录使用 PowerShell 执行：
+在解压目录打开 PowerShell，创建私人配置：
 
 ```powershell
-.\setup.ps1
+Copy-Item config.example.toml config.toml
+.\ustc-marathon.exe credentials set
+.\ustc-marathon.exe login
 ```
 
-脚本在项目目录创建 `.venv`，安装固定版本依赖，并将 Playwright 官方 Chromium 下载到 `runtime/browsers`。第一次安装时创建私人配置 `config.toml`。重复运行安装脚本保留已有配置。
+已有 `config.toml` 时直接使用。首次执行需要浏览器的命令时，程序列出已安装的 Chrome 和 Edge，由本人选择并保存。也可以执行：
 
-## 填写资料与登录
+```powershell
+.\ustc-marathon.exe browser list
+.\ustc-marathon.exe browser select
+```
 
-编辑 `config.toml` 的 `[profile]`：
+`[browser]` 的 `kind` 留空表示尚未选择，选择后为 `chrome` 或 `edge`。`executable_path` 可填写非标准安装位置的浏览器 EXE 完整路径。无法找到指定浏览器时程序退出。
 
-| 配置字段 | 填写内容 |
+## 报名资料
+
+编辑私人配置的 `[profile]`：
+
+| 字段 | 填写内容 |
 | --- | --- |
-| `depart_name` | 学院或部门的规范全称，用于第二步 |
+| `depart_name` | 学院或部门规范全称，第二步使用 |
 | `user_type` | `学生` 或 `教职工` |
 | `sex` | `男` 或 `女` |
-| `size` | 网站中的完整衣服尺码 |
+| `size` | 网站提供的完整衣服尺码 |
 | `id_number` | 十八位身份证号 |
-| `phone` | 本人十一位手机号码，两个步骤使用同一号码 |
-| `emergency_contact` | 紧急联系人的十一位手机号码 |
+| `phone` | 本人十一位手机号码，两个报名步骤共用 |
+| `emergency_contact` | 紧急联系人十一位手机号码 |
 
-衣服尺码可填写：`XS(160/84A)`、`S(165/88A)`、`M(170/92A)`、`L(175/96A)`、`XL(180/100A)`、`2XL(185/104A)`、`3XL(190/108A)`。
+尺码：`XS(160/84A)`、`S(165/88A)`、`M(170/92A)`、`L(175/96A)`、`XL(180/100A)`、`2XL(185/104A)`、`3XL(190/108A)`。
 
-保存账号和密码：
+姓名与学号读取登录账户，参赛校区读取目标比赛。密码隐藏输入，保存在当前 Windows 用户的凭据管理器中。程序兼容原有 `USTC Marathon AutoSignup` 凭据与 SQLite 报名记录。
 
-```powershell
-.\run.cmd credentials set
-.\run.cmd login
-```
-
-密码在终端隐藏输入，保存在当前 Windows 用户的凭据管理器中，服务名称为 `USTC Marathon AutoSignup`。私人 TOML 只保存账号与报名资料。也可以直接运行 `login`，在程序打开的浏览器中本人登录；认证成功后程序保存对应账号。
-
-程序通过 `passport.ustc.edu.cn` 进入 `id.ustc.edu.cn`，识别普通账号密码表单并点击“立即登录”。遇到短信、验证码、设备验证时等待本人完成认证。一次登录流程只自动提交一次密码。
-
-## 选择比赛与开始监测
+## 选择与监测
 
 ```powershell
-.\run.cmd select
-.\run.cmd validate
-.\run.cmd check
-.\run.cmd watch
+.\ustc-marathon.exe select
+.\ustc-marathon.exe validate
+.\ustc-marathon.exe check
+.\ustc-marathon.exe watch
+.\ustc-marathon.exe status
 ```
 
-`select` 使用空格勾选比赛，回车确认，再设置比赛优先顺序。选择结果写入配置顶层的 `targets` 数组；数组顺序就是报名优先顺序。
+`select` 读取真实列表，通过空格勾选比赛，再选择优先顺序，保存到 `targets`。`validate` 检查本地配置；`check` 只读查询；`watch` 执行真实自动报名；`status` 查看本地提交阶段。
 
-`validate` 检查本地配置；`check` 登录网站并读取目标比赛状态、表单预填资料和本人报名记录；`watch` 执行真实自动报名。
+`poll_interval_seconds` 默认为 `30.0`，支持有限正数与小数。监测期间修改间隔，从下一轮生效。账号、目标、报名资料或浏览器改变时程序终止，需要重新启动。
 
-在 `[monitor]` 中设置 `poll_interval_seconds`，支持正数和小数，默认值为 `30.0`。监测期间修改这个间隔，从下一轮检查生效。修改账号、目标比赛或报名资料后需要重新启动监测。
+默认 `headless = true` 后台监测。登录窗口支持普通账户密码自动认证；短信、验证码和设备验证等待本人完成。
 
-`headless = true` 使用后台浏览器。需要本人认证时打开登录窗口。设置为 `false` 可持续显示程序自己的浏览器窗口。
+## 报名与结果核查
 
-## 两个报名步骤
+第一步点击“报名”，报名须知出现后等待至少十秒，同时等待“确认报名”按钮可用。随后保留“院系”和“班级”的系统预填内容，填写配置中的“手机”，点击“确定”。预填必填内容为空时立即终止。
 
-第一步进入选定比赛详情，点击“报名”，按照网站提示进入“报名须知”。程序从须知窗口出现开始等待至少十秒，同时等待“确认报名”按钮可用，再点击按钮。
+取得名额后立即完成第二步。程序核对预填姓名、学号和校区，填写参赛资料，点击“提交”，随后查询本人记录逐项核对。网站要求取得名额后两天内填写资料。
 
-“报名信息”表单中的“院系”和“班级”保留网站预填内容。程序检查预填内容非空，填写配置中的手机号码，再次检查院系和班级保持原值，然后点击“确定”。字段缺失、预填内容为空或出现未知表单时，程序立即终止。
+查询通过网页自己的 `$http` 实例完成，保留原有认证和参数加密；提交通过正常网页按钮完成。人数上限读取 `peopleNum`，当前报名人数读取详情的 `applyNum`。验收同时核对网站参与人数接口的 `registrationNum` 和真实详情页面。每轮核对目标仍在当前账户的可报名列表中。缺少可靠数据、未知字段结构或无法核实的状态会终止程序。实际验证范围见 [VERIFICATION.md](VERIFICATION.md)。
 
-取得名额后进入第二步，填写用户类型、学院或部门、性别、衣服尺码、身份证号、手机号码和紧急联系人电话。程序核对网站预填的姓名、学号及校区，点击“提交”，随后读取本人参赛资料，逐项核实保存结果。
-
-网站要求取得名额后两天内填写参赛资料。程序连续完成两个步骤。已经取得名额的目标比赛优先处理，避免继续报名其他比赛。
-
-## 状态与停止
-
-```powershell
-.\run.cmd status
-.\run.cmd credentials status
-```
-
-按 `Ctrl+C` 停止检查和后续提交。`status` 显示本地报名阶段：
+每次提交前将阶段持久保存到 SQLite：
 
 | 阶段 | 含义 |
 | --- | --- |
-| `enter_pending` | 第一步已经准备发送请求，结果待核查 |
-| `reserved` | 网站报名记录确认取得名额，参赛资料待提交 |
-| `save_pending` | 第二步已经准备发送请求，结果待核查 |
-| `complete` | 网站报名及参赛资料已经核实 |
-| `full` | 网站明确返回名额已满，或提交前检查发现当前无法报名 |
+| `enter_pending` | 第一步准备发送，结果待核查 |
+| `reserved` | 网站确认取得名额，资料待填写 |
+| `save_pending` | 第二步准备发送，结果待核查 |
+| `complete` | 报名与资料均已核实 |
+| `full` | 当前没有可用名额 |
 
-阶段在提交前写入 SQLite。重新启动 `watch` 会读取网站实际记录，再处理未完成报名。提交结果不明确时，程序停止其他比赛报名并保留记录。此前资料提交仍无法确认时，需要在网站核查实际结果；程序终止自动提交。
+重新启动先核查未完成记录，优先完成已取得名额的比赛。提交超时或结果不明确时停止其他比赛报名，仅查询实际记录；仍无法核实则退出。服务器明确返回名额已满时继续监测。全部目标结束报名时退出。
 
-程序通过 Windows 文件锁限制单实例运行，避免两个进程同时报名。配置错误、未知响应、无法确认的账户或比赛状态会终止程序。全部目标结束报名后自动退出。
-
-## 网站数据依据
-
-查询通过当前网页的 `$http` 实例执行，保留网站既有的认证和参数加密。程序只允许查询已识别的比赛、本人资料、第一阶段选项及本人参与项目接口；真实提交通过网页按钮执行。
-
-人数上限读取详情的 `peopleNum`。人数读取网站用于“项目参与人数”显示的 `registrationNum`。两项字段必须为有效整数，人数上限必须大于零。缺少这些数据时程序终止监测。该人数在实际报名期间是否与即时名额一致，需要登录账户和真实比赛核实，参见 [验证记录](VERIFICATION.md)。
-
-当前实现支持现场、单次马拉松活动，以及第一步包含“院系”“班级”“手机”的表单。网站表单、字段或报名形式变化时会终止并报告原因。
+`Ctrl+C` 停止后续检查与提交，保留待核查记录。Windows 文件锁限制同一项目单实例运行。
 
 ## 私人文件
 
-`config.toml`、`config.toml.pending`、`.venv` 和整个 `runtime` 目录已加入 `.gitignore`。GitHub 源码包含空白配置示例。运行日志只记录比赛编号、公开比赛名称、人数和操作阶段，账号在数据库中保存为 SHA-256 摘要。
+私人配置和整个 `runtime` 目录通过 `.gitignore` 排除上传。`runtime/sessions/chrome` 和 `runtime/sessions/edge` 保存程序的独立登录会话。网站资源缓存禁用，磁盘缓存限制为 1 MiB；浏览器仍会维护自身所需的会话文件。
 
-`runtime/browser-profile` 含有登录会话，`config.toml` 含有本人资料，均应只保存在本机。浏览器会话与现有选课项目分别保存。
+`runtime/state.sqlite3` 保存报名阶段，账户使用 SHA256 摘要；`runtime/activity.jsonl` 保存脱敏操作记录。上传问题报告时请保留个人资料与认证信息的隐私。
 
-## 验证命令
+## 开发与构建
+
+使用 Go 1.27.2。模块版本记录在 `go.mod` 和 `go.sum`。PowerShell 7 执行：
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -m pip check
-.\.venv\Scripts\python.exe tools\verify_public.py
+.\build.ps1
 ```
 
-本地测试检查真实文件、实际 SQLite 数据库和 Windows 文件锁。公开网页验证使用独立后台浏览器，读取真实认证页面和前端资源，不输入账号资料。当前验证边界记录在 [VERIFICATION.md](VERIFICATION.md)。
+脚本验证依赖、执行本地测试与静态检查，使用 `CGO_ENABLED=0` 构建 EXE，并生成 ZIP 与 SHA256。构建产物在 `dist`，运行无需安装 Go。
 
-认证识别流程参考 [USTC 选课助手](https://github.com/TwinJades/USTC_Automatic_Course_Selection_Tool) 的实现。
+真实网站只读验收使用本机配置和凭据：
+
+```powershell
+$env:USTC_LIVE_VERIFY = '1'
+go test -v -run '^TestLiveBrowsers$' -timeout 25m .
+```
+
+脱敏结果保存在 `runtime/verification-go-chrome.json`、`runtime/verification-go-edge.json`。登录实现参考科大选课助手的正常统一认证流程。

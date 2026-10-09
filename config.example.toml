@@ -1,6 +1,12 @@
 # 运行 select 命令后自动写入目标比赛。数组顺序就是优先顺序。
 targets = []
 
+# 首次使用时由本人选择，程序保存 chrome 或 edge。
+[browser]
+kind = ""
+# 非标准安装位置可以填写浏览器 EXE 的完整路径。
+executable_path = ""
+
 # 登录账号与程序运行设置。密码通过 credentials set 命令输入。
 [monitor]
 username = ""

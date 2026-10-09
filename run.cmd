@@ -1,10 +1,8 @@
 @echo off
 cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
-  echo Please run setup.ps1 first.
+if not exist "ustc-marathon.exe" (
+  echo Please download the Windows release or run build.ps1.
   exit /b 1
 )
-set "PLAYWRIGHT_BROWSERS_PATH=%~dp0runtime\browsers"
-set "PYTHONUTF8=1"
-".venv\Scripts\python.exe" -m ustc_marathon %*
+"ustc-marathon.exe" %*
 exit /b %ERRORLEVEL%
