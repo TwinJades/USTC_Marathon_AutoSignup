@@ -8,7 +8,7 @@ from enum import Enum
 from playwright.async_api import Locator, TimeoutError as PlaywrightTimeoutError
 
 from .browser import BrowserSession, SITE
-from .config import Profile, Target
+from .config import Profile, Target, read_config
 from .errors import Problem
 from .state import Journal
 
@@ -122,7 +122,7 @@ class Website:
     async def own_records(self) -> dict[str, dict]:
         return {row["id"]: row for row in await self.pages(OWN_PATH)}
 
-    async def availability(self, target: Target) -> Availability:
+    async def details(self, target: Target) -> dict:
         detail = dictionary(await self.browser.get("/item/scItem/queryById", id=target.id))
         actual = Target(id=required_text(detail, "id"), name=required_text(detail, "itemName"),
                         campus=required_text(detail, "marathonCampus"))
@@ -130,6 +130,10 @@ class Website:
             raise Problem("目标比赛名称、编号、校区或类型发生变化，请重新选择。")
         if str(detail.get("itemCategory")) != "0" or str(detail.get("form")) != "0":
             raise Problem("目标比赛的报名形式不属于当前支持的现场单次活动。")
+        return detail
+
+    async def availability(self, target: Target) -> Availability:
+        detail = await self.details(target)
         capacity = required_integer(detail, "peopleNum")
         if capacity == 0:
             raise Problem("网站人数上限为零，无法可靠判断剩余名额。")
@@ -200,6 +204,10 @@ class Website:
         return row
 
     async def submission(self, button: Locator, path: str, username: str, target: Target, stage: str) -> Outcome:
+        current = read_config()
+        expected = self.browser.config
+        if current.profile != expected.profile or current.targets != expected.targets or current.monitor.username != expected.monitor.username:
+            raise Problem("提交前报名配置发生变化，已停止后续提交。")
         if not await self.browser.ready():
             raise Problem("提交前登录会话已经失效，请重新启动并核查记录。")
         actual = await self.page.evaluate("() => document.querySelector('#app').__vue__.$store.getters.userInfo.username")

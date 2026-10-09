@@ -33,7 +33,7 @@ async def confirm_record(site: Website, target: Target) -> dict | None:
 
 async def complete_reserved(site: Website, target: Target, config: Config, account: dict,
                             row: dict, pending_phase: str = "reserved") -> None:
-    await site.availability(target)
+    await site.details(target)
     if await site.verified_saved(target, config.profile, account, row):
         site.journal.record(account["username"], target, "complete")
         print(f"报名及资料保存已核实：{target.name}（{target.campus}）。全部监测已经停止。")
