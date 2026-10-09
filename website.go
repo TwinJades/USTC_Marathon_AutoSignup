@@ -305,36 +305,7 @@ func (s *Website) enter(t Target, username string) (Outcome, error) {
 	a, err := s.availability(t)
 	if err != nil { return unknown, err }
 	if a.phase(time.Now()) != "available" { return full, nil }
-	if err := s.searchRow(t, false); err != nil { return unknown, err }
-	var selector string
-	if err := s.b.eval(domControl, map[string]any{"op": "rowDetail", "id": t.ID}, &selector); err != nil { return unknown, err }
-	if err := s.b.click(selector); err != nil { return unknown, err }
-	if err := s.dialog("项目详情"); err != nil { return unknown, err }
-	if err := s.verifyComponent(t, "项目详情"); err != nil { return unknown, err }
-	if err := s.b.press("项目详情", "报名"); err != nil { return unknown, err }
-	if err := s.b.wait(`() => [...document.querySelectorAll('.ant-modal-title,.ant-popover')].some(e=>e.getClientRects().length&&(e.innerText.trim()==='报名须知'||e.innerText.includes('确定报名')))`, nil); err != nil { return unknown, err }
-	var popover bool
-	if err := s.b.eval(`() => [...document.querySelectorAll('.ant-popover')].some(e=>e.getClientRects().length)`, nil, &popover); err != nil { return unknown, err }
-	if popover { selector, err = s.b.control("popover", "", ""); if err != nil { return unknown, err }; if err := s.b.click(selector); err != nil { return unknown, err } }
-	if err := s.dialog("报名须知"); err != nil { return unknown, err }
-	visibleAt := time.Now()
-	if err := sleep(s.b.parent, 10*time.Second); err != nil { return unknown, err }
-	if err := s.b.wait(`() => [...document.querySelectorAll('.ant-modal-content')].filter(e=>e.getClientRects().length&&e.innerText.includes('报名须知')).some(e=>[...e.querySelectorAll('button')].some(b=>b.innerText.trim()==='确认报名'&&!b.disabled))`, nil); err != nil { return unknown, err }
-	if time.Since(visibleAt) < 10*time.Second { return unknown, fmt.Errorf("报名须知等待不足十秒") }
-	if err := s.j.event("报名须知等待完成", map[string]any{"item": t.ID, "seconds": time.Since(visibleAt).Seconds()}); err != nil { return unknown, err }
-	if err := s.b.press("报名须知", "确认报名"); err != nil { return unknown, err }
-	if err := s.dialog("报名信息"); err != nil { return unknown, err }
-	for _, label := range []string{"院系", "班级"} {
-		actual, err := s.b.control("value", "报名信息", label)
-		if err != nil { return unknown, err }
-		if actual != options[label] { return unknown, fmt.Errorf("系统预填的院系或班级无效") }
-	}
-	if err := s.b.input("报名信息", "手机", s.b.config.Profile.Phone); err != nil { return unknown, err }
-	for _, label := range []string{"院系", "班级"} {
-		actual, err := s.b.control("value", "报名信息", label)
-		if err != nil { return unknown, err }
-		if actual != options[label] { return unknown, fmt.Errorf("系统预填内容发生变化") }
-	}
+	if err := s.prepareFirst(t, options); err != nil { return unknown, err }
 	a, err = s.availability(t)
 	if err != nil { return unknown, err }
 	if a.phase(time.Now()) != "available" { return full, nil }
@@ -344,6 +315,48 @@ func (s *Website) enter(t Target, username string) (Outcome, error) {
 	if err != nil { return unknown, err }
 	if already { return accepted, nil }
 	return s.submission(t, username, "enter_pending", "确定", "报名信息", "/item/scItemRegistration/enter/"+t.ID)
+}
+
+func (s *Website) prepareFirst(t Target, options map[string]string) error {
+	detail, err := s.detail(t)
+	if err != nil { return err }
+	if fmt.Sprint(detail["needSignInfo"]) != "1" { return fmt.Errorf("网站未明确启用第一阶段资料表单，禁止自动确认报名") }
+	if err := s.searchRow(t, false); err != nil { return err }
+	var selector string
+	if err := s.b.eval(domControl, map[string]any{"op": "rowDetail", "id": t.ID}, &selector); err != nil { return err }
+	if err := s.b.click(selector); err != nil { return err }
+	if err := s.dialog("项目详情"); err != nil { return err }
+	if err := s.verifyComponent(t, "项目详情"); err != nil { return err }
+	if err := s.b.press("项目详情", "报名"); err != nil { return err }
+	if err := s.b.wait(`() => [...document.querySelectorAll('.ant-modal-title,.ant-popover')].some(e=>e.getClientRects().length&&(e.innerText.trim()==='报名须知'||e.innerText.includes('确定报名')))`, nil); err != nil { return err }
+	var popover bool
+	if err := s.b.eval(`() => [...document.querySelectorAll('.ant-popover')].some(e=>e.getClientRects().length)`, nil, &popover); err != nil { return err }
+	if popover { selector, err = s.b.control("popover", "", ""); if err != nil { return err }; if err := s.b.click(selector); err != nil { return err } }
+	if err := s.dialog("报名须知"); err != nil { return err }
+	visibleAt := time.Now()
+	if err := sleep(s.b.parent, 10*time.Second); err != nil { return err }
+	if err := s.b.wait(`() => [...document.querySelectorAll('.ant-modal-content')].filter(e=>e.getClientRects().length&&e.innerText.includes('报名须知')).some(e=>[...e.querySelectorAll('button')].some(b=>b.innerText.trim()==='确认报名'&&!b.disabled))`, nil); err != nil { return err }
+	if time.Since(visibleAt) < 10*time.Second { return fmt.Errorf("报名须知等待不足十秒") }
+	if err := s.j.event("报名须知等待完成", map[string]any{"item": t.ID, "seconds": time.Since(visibleAt).Seconds()}); err != nil { return err }
+	if err := s.b.press("报名须知", "确认报名"); err != nil { return err }
+	if err := s.dialog("报名信息"); err != nil { return err }
+	if err := s.verifyComponent(t, "报名信息"); err != nil { return err }
+	if err := s.b.wait(`() => {const roots=[...document.querySelectorAll('.ant-modal-content')].filter(e=>e.getClientRects().length&&[...e.querySelectorAll('.ant-modal-title')].some(t=>t.innerText.trim()==='报名信息'));if(roots.length!==1)return false;return ['院系','班级','手机'].every(label=>[...roots[0].querySelectorAll('.ant-form-item')].some(e=>[...e.querySelectorAll('label')].some(l=>l.innerText.trim().replace(/[:：]$/,'')===label)&&e.querySelector('input:not([type="hidden"])')));}`, nil); err != nil { return err }
+	for _, label := range []string{"院系", "班级"} {
+		actual, err := s.b.control("value", "报名信息", label)
+		if err != nil { return err }
+		if actual != options[label] { return fmt.Errorf("系统预填的院系或班级无效") }
+	}
+	if err := s.b.input("报名信息", "手机", s.b.config.Profile.Phone); err != nil { return err }
+	for _, label := range []string{"院系", "班级"} {
+		actual, err := s.b.control("value", "报名信息", label)
+		if err != nil { return err }
+		if actual != options[label] { return fmt.Errorf("系统预填内容发生变化") }
+	}
+	phone, err := s.b.control("value", "报名信息", "手机")
+	if err != nil { return err }
+	if phone != s.b.config.Profile.Phone { return fmt.Errorf("第一阶段手机号码不一致") }
+	return nil
 }
 
 func (s *Website) save(t Target, account Object) (Outcome, error) {

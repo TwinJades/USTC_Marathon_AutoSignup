@@ -50,6 +50,7 @@ const domControl = `p => {
 func (b *Browser) control(op, dialog, label string) (string, error) {
 	var value string
 	err := b.eval(domControl, map[string]any{"op": op, "dialog": dialog, "label": label}, &value)
+	if err != nil { return "", fmt.Errorf("页面字段定位失败（%s/%s/%s）：%w", op, dialog, label, err) }
 	return value, err
 }
 
