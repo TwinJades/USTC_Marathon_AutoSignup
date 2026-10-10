@@ -2,8 +2,9 @@
 /src/runtime/
 /build/
 /dist/
-**/config.toml
-**/config.toml.pending
+*.toml
+*.toml.pending
+!/src/config.example.toml
 **/runtime/
 **/sessions/
 *.sqlite3
