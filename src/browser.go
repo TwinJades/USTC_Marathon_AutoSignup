@@ -232,13 +232,21 @@ func (b *Browser) queryClick(path string, action func() error) error {
 func (b *Browser) login(visible bool) error {
 	b.loginDeadline=time.Now().Add(seconds(b.config.Monitor.LoginTimeout))
 	defer func(){b.loginDeadline=time.Time{}}()
-	if err := b.launch(!visible && b.config.Monitor.Headless); err != nil { return err }
 	password, err := readPassword(b.config.Monitor.Username)
 	if err != nil { return err }
 	submitted, notified, entered := false, false, false
 	deadline := b.loginDeadline
 	loginContext,stopLogin:=context.WithDeadline(b.parent,deadline)
 	defer stopLogin()
+	if password=="" && term.IsTerminal(int(os.Stdin.Fd())) {
+		username:=b.config.Monitor.Username
+		if err:=huh.NewForm(huh.NewGroup(huh.NewInput().Title("统一身份认证账号").Value(&username),huh.NewInput().Title("统一身份认证密码").EchoMode(huh.EchoModePassword).Value(&password))).RunWithContext(loginContext);err!=nil{return fmt.Errorf("登录输入已取消或等待超时")}
+		username=strings.TrimSpace(username)
+		if username==""||password==""{return fmt.Errorf("登录账号和密码不能为空")}
+		b.config.Monitor.Username=username
+		entered=true
+	}
+	if err := b.launch(!visible && b.config.Monitor.Headless); err != nil { return err }
 	for time.Now().Before(deadline) {
 		ready, err := b.ready()
 		if err != nil { return err }
@@ -270,14 +278,6 @@ func (b *Browser) login(visible bool) error {
 		if notice != "" { if err := b.click(notice); err != nil { return err } }
 		var probe struct { Kind string; AccountIndex, PasswordIndex int }
 		if err := b.eval(loginProbe, nil, &probe); err != nil { return err }
-		if probe.Kind=="login" && password=="" && !entered && term.IsTerminal(int(os.Stdin.Fd())) {
-			username:=b.config.Monitor.Username
-			if err:=huh.NewForm(huh.NewGroup(huh.NewInput().Title("统一身份认证账号").Value(&username),huh.NewInput().Title("统一身份认证密码").EchoMode(huh.EchoModePassword).Value(&password))).RunWithContext(loginContext);err!=nil{return fmt.Errorf("登录输入已取消或等待超时")}
-			username=strings.TrimSpace(username)
-			if username==""||password==""{return fmt.Errorf("登录账号和密码不能为空")}
-			b.config.Monitor.Username=username
-			entered=true
-		}
 		interactive := probe.Kind == "verification" || password == ""
 		if interactive && b.headless { if err := b.launch(false); err != nil { return err }; continue }
 		if interactive && !notified { fmt.Println("请在登录窗口完成本人验证，程序等待正常认证结果。"); notified = true }

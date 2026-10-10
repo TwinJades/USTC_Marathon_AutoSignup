@@ -68,7 +68,10 @@ func TestLiveTerminalLogin(t *testing.T) {
 			text:=output.String()
 			if !browserSent&&strings.Contains(text,"选择本机浏览器"){if _,err:=terminal.Write([]byte(strconv.Itoa(browserIndex+1)+"\r"));err!=nil{t.Fatal(err)};browserSent=true}
 			if !accountSent&&strings.Contains(text,"统一身份认证账号"){if _,err:=terminal.Write([]byte(username+"\r"));err!=nil{t.Fatal(err)};accountSent=true}
-			if !passwordSent&&strings.Contains(text,"统一身份认证密码"){if _,err:=terminal.Write([]byte(password+"\r"));err!=nil{t.Fatal(err)};passwordSent=true}
+			if !passwordSent&&strings.Contains(text,"统一身份认证密码"){
+				if _,err:=os.Stat(filepath.Join(root,"runtime","sessions"));!os.IsNotExist(err){t.Fatal("账号密码输入完成前已经启动浏览器",err)}
+				if _,err:=terminal.Write([]byte(password+"\r"));err!=nil{t.Fatal(err)};passwordSent=true
+			}
 		}
 	}
 }
