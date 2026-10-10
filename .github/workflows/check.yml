@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.2'
+          cache-dependency-path: src/go.sum
       - name: Build and test release
         shell: pwsh
         run: ./scripts/build.ps1
