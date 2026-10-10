@@ -4,10 +4,10 @@ $releaseRoot=Join-Path $projectRoot 'release'
 $evidenceRoot=Join-Path $releaseRoot 'runtime\verification'
 $destination=Join-Path $evidenceRoot '中文解压验收'
 if (Test-Path -LiteralPath $destination) { throw '解压验收目录必须为空。' }
-$archive=Join-Path $releaseRoot 'packages\USTC_Marathon_AutoSignup_v2.0.1_windows_amd64.zip'
+$archive=Join-Path $releaseRoot 'packages\USTC_Marathon_AutoSignup_v2.0.2_windows_amd64.zip'
 Expand-Archive -LiteralPath $archive -DestinationPath $destination
-$expected=@('ustc-marathon.exe','config.example.toml','README.md','VERIFICATION.md','LICENSE','run.cmd','uninstall.ps1','THIRD_PARTY_LICENSES.txt','.ustc-marathon.json')
-$actual=@(Get-ChildItem -LiteralPath $destination -File -Force | Select-Object -ExpandProperty Name)
+$expected=@('ustc-marathon.exe','config.example.toml','README.md','docs\LICENSE','run.cmd','uninstall.ps1','docs\THIRD_PARTY_LICENSES.txt','.ustc-marathon.json')
+$actual=@(Get-ChildItem -LiteralPath $destination -File -Force -Recurse | ForEach-Object {[System.IO.Path]::GetRelativePath($destination,$_.FullName)})
 if (Compare-Object $expected $actual) { throw '发布包内容不符合要求。' }
 $executable=Join-Path $destination 'ustc-marathon.exe'
 if ((Get-FileHash -LiteralPath $executable).Hash -ne (Get-FileHash -LiteralPath (Join-Path $releaseRoot 'ustc-marathon.exe')).Hash) { throw '解压后的 EXE 校验失败。' }

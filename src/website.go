@@ -59,6 +59,10 @@ func (s *Website) account() (Object, error) {
 	if err != nil { return nil, err }
 	if _, err := text(o, "realname"); err != nil { return nil, err }
 	if s.b.config.Monitor.Username != "" && u != s.b.config.Monitor.Username { return nil, fmt.Errorf("网站账户与配置账号不一致") }
+	department,err:=text(o,"deptName");if err!=nil||strings.TrimSpace(department)==""{return nil,fmt.Errorf("网站预填学院或部门为空或结构无效")}
+	sex,err:=text(o,"sexName");if err!=nil||(sex!="男"&&sex!="女"){return nil,fmt.Errorf("网站预填性别无效")}
+	s.b.config.Profile.Department=department
+	s.b.config.Profile.Sex=sex
 	return o, nil
 }
 
@@ -378,7 +382,10 @@ func (s *Website) save(t Target, account Object) (Outcome, error) {
 	if err != nil { return unknown, err }
 	if campus != t.Campus { return unknown, fmt.Errorf("第二阶段校区与目标比赛不一致") }
 	p := s.b.config.Profile
-	for label, value := range map[string]string{"用户类型": p.Type, "性别": p.Sex, "衣服尺码": p.Size} {
+	department,err:=s.b.control("value","新增","学院/部门");if err!=nil{return unknown,err}
+	sex,err:=s.b.control("selected","新增","性别");if err!=nil{return unknown,err}
+	if strings.TrimSpace(department)==""||department!=p.Department||(sex!="男"&&sex!="女")||sex!=p.Sex{return unknown,fmt.Errorf("第二阶段网站预填学院或性别与账户不一致")}
+	for label, value := range map[string]string{"用户类型": p.Type, "衣服尺码": p.Size} {
 		selector, err := s.b.control("select", "新增", label)
 		if err != nil { return unknown, err }
 		if err := s.b.click(selector); err != nil { return unknown, err }
@@ -390,7 +397,7 @@ func (s *Website) save(t Target, account Object) (Outcome, error) {
 		if err != nil { return unknown, err }
 		if actual != value { return unknown, fmt.Errorf("第二阶段选项填写不一致：%s", label) }
 	}
-	for label, value := range map[string]string{"学院/部门": p.Department, "身份证号": p.IDNumber, "手机号码": p.Phone, "紧急联系人联系方式": p.Emergency} {
+	for label, value := range map[string]string{"身份证号": p.IDNumber, "手机号码": p.Phone, "紧急联系人联系方式": p.Emergency} {
 		if err := s.b.input("新增", label, value); err != nil { return unknown, err }
 	}
 	return s.submission(t, account["username"].(string), "save_pending", "提交", "新增", "/item/scItem/marathon/save")

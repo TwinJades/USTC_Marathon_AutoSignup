@@ -98,6 +98,8 @@ func (c Config) validate() error {
 }
 
 func (p Profile) complete() error {
+	if p.Type!="学生"&&p.Type!="教职工"{return fmt.Errorf("用户类型无效")}
+	if p.Sex!="男"&&p.Sex!="女"{return fmt.Errorf("网站预填性别尚未通过验证，请先登录")}
 	v := reflect.ValueOf(p)
 	for i := 0; i < v.NumField(); i++ {
 		if strings.TrimSpace(v.Field(i).String()) == "" { return fmt.Errorf("请填写 profile.%s", v.Type().Field(i).Tag.Get("toml")) }
@@ -107,6 +109,18 @@ func (p Profile) complete() error {
 	if !found { return fmt.Errorf("size 必须填写网站使用的完整衣服尺码") }
 	if !phonePattern.MatchString(p.Phone) || !phonePattern.MatchString(p.Emergency) { return fmt.Errorf("手机和紧急联系人电话必须为有效的十一位号码") }
 	if !identityPattern.MatchString(p.IDNumber) { return fmt.Errorf("id_number 不符合十八位身份证号格式") }
+	return nil
+}
+
+func validateProfileField(name, value string) error {
+	if value==""{return fmt.Errorf("内容不能为空")}
+	switch name {
+	case "user_type":if value!="学生"&&value!="教职工"{return fmt.Errorf("请选择学生或教职工")}
+	case "size":for _,size:=range sizes{if value==size{return nil}};return fmt.Errorf("请选择网站提供的完整尺码")
+	case "id_number":if !identityPattern.MatchString(value){return fmt.Errorf("身份证号必须符合十八位格式")}
+	case "phone","emergency_contact":if !phonePattern.MatchString(value){return fmt.Errorf("必须为有效的十一位手机号码")}
+	default:return fmt.Errorf("未知资料字段")
+	}
 	return nil
 }
 

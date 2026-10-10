@@ -8,13 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 
 	"github.com/charmbracelet/huh"
 	"golang.org/x/term"
 )
 
-const version = "2.0.1"
+const version = "2.0.2"
 
 func selectBrowser(c *Config) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) { return fmt.Errorf("浏览器选择需要交互终端；也可以在配置中填写 browser.kind = \"chrome\" 或 \"edge\"") }
@@ -116,6 +115,7 @@ func run(ctx context.Context, args []string) (result error) {
 		for _, r := range rows { fmt.Printf("%s（%s）：%s；%s\n", r.Name, r.Campus, r.Phase, r.Updated) }
 		return nil
 	}
+	if err:=ensureConfig();err!=nil{return err}
 	c, err := loadConfig()
 	if err != nil { return err }
 	if command == "validate" { if len(commands)!=1{return fmt.Errorf("validate 不接受额外参数")}; if err := c.requireWatch(); err != nil { return err }; fmt.Println("配置格式、目标比赛及报名资料检查通过。"); return nil }
@@ -132,16 +132,10 @@ func run(ctx context.Context, args []string) (result error) {
 			return nil
 		}
 		if commands[1] != "set" { return fmt.Errorf("用法：credentials set 或 credentials status") }
-		username, password := c.Monitor.Username, ""
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("统一身份认证账号").Value(&username), huh.NewInput().Title("统一身份认证密码").EchoMode(huh.EchoModePassword).Value(&password))).Run(); err != nil { return fmt.Errorf("凭据输入已取消") }
-		username = strings.TrimSpace(username)
-		if err := writePassword(username, password); err != nil { return err }
-		if err := updateConfig([]string{"monitor", "username"}, username); err != nil { return err }
-		fmt.Println("登录密码已保存到 Windows 凭据管理器。")
-		return nil
+		command="login"
+		commands=[]string{"login"}
 	}
 	if len(commands) != 1 { return fmt.Errorf("命令不接受额外参数") }
-	if command == "watch" || command == "check" { if err := c.requireWatch(); err != nil { return err } }
 	if c.Browser.Kind == "" { if err := selectBrowser(&c); err != nil { return err } }
 	j, err := openJournal(runtimeRoot)
 	if err != nil { return err }
@@ -150,12 +144,11 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil { return err }
 	defer func(){ if err:=b.close();err!=nil {result=errors.Join(result,err)} }()
 	if err := b.login(command == "login"); err != nil { return err }
+	for _,field:=range []struct{key,value string}{{"depart_name",b.config.Profile.Department},{"sex",b.config.Profile.Sex}}{if err:=updateConfig([]string{"profile",field.key},field.value);err!=nil{return err}}
+	if command=="watch"||command=="check"{if err:=b.config.requireWatch();err!=nil{return err}}
 	s := &Website{b,j}
 	switch command {
-	case "login":
-		account, err := s.account()
-		if err != nil { return err }
-		if c.Monitor.Username == "" { return updateConfig([]string{"monitor","username"}, account["username"]) }
+	case "login": return nil
 	case "select": return selectRaces(s)
 	case "check": return s.check()
 	case "watch": return s.watch()

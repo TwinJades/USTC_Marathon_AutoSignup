@@ -40,7 +40,7 @@ func TestReleaseUninstall(t *testing.T){
 	defer func(){if err:=deletePassword(username);err!=nil{t.Error(err)}}()
 	executable:=filepath.Join(root,"ustc-marathon.exe")
 	version,err:=exec.Command(executable,"--version").CombinedOutput()
-	if err!=nil||string(version)!="2.0.1\n"{t.Fatal("中文目录 EXE 版本验证失败",err)}
+	if err!=nil||string(version)!="2.0.2\n"{t.Fatal("中文目录 EXE 版本验证失败",err)}
 	lock,err:=lockInstance(filepath.Join(root,"runtime"));if err!=nil{t.Fatal(err)}
 	if err:=exec.Command(executable,"uninstall").Run();err==nil{lock.Close();t.Fatal("卸载未拒绝其他运行实例")}
 	lock.Close()

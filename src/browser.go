@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/charmbracelet/huh"
+	"golang.org/x/term"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"golang.org/x/sys/windows/registry"
@@ -29,7 +31,14 @@ type Browser struct {
 	config Config
 	path string
 	headless bool
+	loginDeadline time.Time
 	journal *Journal
+}
+
+func (b *Browser) requestContext() (context.Context,context.CancelFunc) {
+	deadline:=time.Now().Add(seconds(b.config.Monitor.RequestTimeout))
+	if !b.loginDeadline.IsZero()&&b.loginDeadline.Before(deadline){deadline=b.loginDeadline}
+	return context.WithDeadline(b.ctx,deadline)
 }
 
 func installedBrowsers() []InstalledBrowser {
@@ -128,7 +137,7 @@ func (b *Browser) launch(headless bool) error {
 	b.headless = headless
 	// 浏览器生命周期使用会话上下文，单次查询的超时不终止整个进程。
 	if err := chromedp.Run(b.ctx); err != nil { return fmt.Errorf("浏览器启动失败：%w", err) }
-	ctx, stop := context.WithTimeout(b.ctx, seconds(b.config.Monitor.RequestTimeout))
+	ctx, stop := b.requestContext()
 	defer stop()
 	if err := chromedp.Run(ctx, network.Enable(), network.SetCacheDisabled(true), chromedp.Navigate(marathonURL)); err != nil { return fmt.Errorf("浏览器启动或页面加载失败") }
 	return nil
@@ -138,7 +147,7 @@ func (b *Browser) eval(script string, params any, output any) error {
 	encoded, err := json.Marshal(params)
 	if err != nil { return err }
 	expression := "(" + script + ")(" + string(encoded) + ")"
-	ctx, cancel := context.WithTimeout(b.ctx, seconds(b.config.Monitor.RequestTimeout))
+	ctx, cancel := b.requestContext()
 	defer cancel()
 	return chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 		result, exception, err := runtime.Evaluate(expression).WithAwaitPromise(true).WithReturnByValue(true).Do(ctx)
@@ -149,6 +158,7 @@ func (b *Browser) eval(script string, params any, output any) error {
 					if strings.Contains(exception.Exception.Description, reason) { return fmt.Errorf("页面执行失败：%s", reason) }
 				}
 			}
+			if exception.Exception!=nil { for _,reason:=range []string{"Inspected target navigated or closed","Execution context was destroyed","TypeError","ReferenceError"}{if strings.Contains(exception.Exception.Description,reason){return fmt.Errorf("页面执行失败：%s",reason)}} }
 			return fmt.Errorf("页面执行失败，请核查网站结构和响应")
 		}
 		if output != nil {
@@ -160,7 +170,7 @@ func (b *Browser) eval(script string, params any, output any) error {
 
 func (b *Browser) ready() (bool, error) {
 	var ready bool
-	err := b.eval(`() => location.origin === 'https://young.ustc.edu.cn' && !!document.querySelector('#app')?.__vue__?.$http?.get && !!document.querySelector('#app')?.__vue__?.$store?.getters?.token`, nil, &ready)
+	err := b.eval(`() => location.origin === 'https://young.ustc.edu.cn' && !!document.querySelector('#app')?.__vue__?.$http?.get && !!document.querySelector('#app')?.__vue__?.$store?.getters?.token && !!document.querySelector('#app')?.__vue__?.$store?.getters?.userInfo?.username`, nil, &ready)
 	return ready, err
 }
 
@@ -176,7 +186,7 @@ func (b *Browser) wait(script string, params any) error {
 }
 
 func (b *Browser) navigate(url string) error {
-	ctx, cancel := context.WithTimeout(b.ctx, seconds(b.config.Monitor.RequestTimeout))
+	ctx, cancel := b.requestContext()
 	defer cancel()
 	if err := chromedp.Run(ctx, chromedp.Navigate(url)); err != nil { return fmt.Errorf("页面跳转失败") }
 	return nil
@@ -185,7 +195,7 @@ func (b *Browser) navigate(url string) error {
 func (b *Browser) click(selector string) error {
 	var point struct { X, Y float64 }
 	if err := b.eval(`async selector => {const e=document.querySelector(selector); if(!e)throw Error('字段缺失'); e.scrollIntoView({block:'center',inline:'center'}); await new Promise(resolve=>setTimeout(resolve,50)); const r=e.getBoundingClientRect(); let l=Math.max(0,r.left),t=Math.max(0,r.top),right=Math.min(innerWidth,r.right),bottom=Math.min(innerHeight,r.bottom); for(let p=e.parentElement;p;p=p.parentElement){const s=getComputedStyle(p),a=p.getBoundingClientRect(); if(/auto|scroll|hidden|clip/.test(s.overflowX)){l=Math.max(l,a.left);right=Math.min(right,a.right);} if(/auto|scroll|hidden|clip/.test(s.overflowY)){t=Math.max(t,a.top);bottom=Math.min(bottom,a.bottom);}} if(right<=l||bottom<=t)throw Error('按钮不可见'); const x=(l+right)/2,y=(t+bottom)/2; const hit=document.elementFromPoint(x,y); if(!hit||!e.contains(hit))throw Error('按钮被遮挡'); return {x,y};}`, selector, &point); err != nil { return err }
-	ctx, cancel := context.WithTimeout(b.ctx, seconds(b.config.Monitor.RequestTimeout))
+	ctx, cancel := b.requestContext()
 	defer cancel()
 	if err := chromedp.Run(ctx, chromedp.MouseClickXY(point.X, point.Y)); err != nil { return fmt.Errorf("页面按钮点击失败") }
 	return nil
@@ -220,11 +230,15 @@ func (b *Browser) queryClick(path string, action func() error) error {
 }
 
 func (b *Browser) login(visible bool) error {
+	b.loginDeadline=time.Now().Add(seconds(b.config.Monitor.LoginTimeout))
+	defer func(){b.loginDeadline=time.Time{}}()
 	if err := b.launch(!visible && b.config.Monitor.Headless); err != nil { return err }
 	password, err := readPassword(b.config.Monitor.Username)
 	if err != nil { return err }
-	submitted, notified := false, false
-	deadline := time.Now().Add(seconds(b.config.Monitor.LoginTimeout))
+	submitted, notified, entered := false, false, false
+	deadline := b.loginDeadline
+	loginContext,stopLogin:=context.WithDeadline(b.parent,deadline)
+	defer stopLogin()
 	for time.Now().Before(deadline) {
 		ready, err := b.ready()
 		if err != nil { return err }
@@ -233,7 +247,12 @@ func (b *Browser) login(visible bool) error {
 			if err := b.eval(`() => location.pathname`, nil, &path); err != nil { return err }
 			if path != appPath+"/myproject/marathonProject" { if err := b.navigate(marathonURL); err != nil { return err } }
 			if err := b.wait(`() => !!document.querySelector('#app')?.__vue__?.$http?.get`, nil); err != nil { return err }
-			fmt.Println("统一身份认证成功。")
+			s:=&Website{b,b.journal}
+			account,err:=s.account();if err!=nil{return err}
+			username:=account["username"].(string)
+			if entered {if err:=writePassword(username,password);err!=nil{return err};fmt.Println("账户验证成功，登录凭据已保存到 Windows 凭据管理器。")}
+			if b.config.Monitor.Username==""||entered{if err:=updateConfig([]string{"monitor","username"},username);err!=nil{return err};b.config.Monitor.Username=username}
+			fmt.Println("账户及网站预填资料验证成功。")
 			return b.journal.event("登录验证完成", map[string]any{"browser": b.config.Browser.Kind})
 		}
 		var location string
@@ -251,6 +270,14 @@ func (b *Browser) login(visible bool) error {
 		if notice != "" { if err := b.click(notice); err != nil { return err } }
 		var probe struct { Kind string; AccountIndex, PasswordIndex int }
 		if err := b.eval(loginProbe, nil, &probe); err != nil { return err }
+		if probe.Kind=="login" && password=="" && !entered && term.IsTerminal(int(os.Stdin.Fd())) {
+			username:=b.config.Monitor.Username
+			if err:=huh.NewForm(huh.NewGroup(huh.NewInput().Title("统一身份认证账号").Value(&username),huh.NewInput().Title("统一身份认证密码").EchoMode(huh.EchoModePassword).Value(&password))).RunWithContext(loginContext);err!=nil{return fmt.Errorf("登录输入已取消或等待超时")}
+			username=strings.TrimSpace(username)
+			if username==""||password==""{return fmt.Errorf("登录账号和密码不能为空")}
+			b.config.Monitor.Username=username
+			entered=true
+		}
 		interactive := probe.Kind == "verification" || password == ""
 		if interactive && b.headless { if err := b.launch(false); err != nil { return err }; continue }
 		if interactive && !notified { fmt.Println("请在登录窗口完成本人验证，程序等待正常认证结果。"); notified = true }
@@ -267,7 +294,7 @@ func (b *Browser) login(visible bool) error {
 			if err := b.eval(`() => /密码错误|密码不正确|用户名或密码错误|账号被锁定/.test(document.body.innerText)`, nil, &rejected); err != nil { return err }
 			if rejected { return fmt.Errorf("统一身份认证拒绝登录，请核查保存的凭据") }
 		}
-		if err := sleep(b.parent, 400*time.Millisecond); err != nil { return err }
+		if err := sleep(loginContext, 400*time.Millisecond); err != nil { return err }
 	}
 	return fmt.Errorf("等待统一身份认证超时")
 }

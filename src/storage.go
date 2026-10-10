@@ -111,7 +111,7 @@ func uninstall()error{
 	executable,err:=os.Executable();if err!=nil{return err}
 	root:=filepath.Dir(executable)
 	if err:=within(filepath.Dir(root),root);err!=nil{return err}
-	allowed:=map[string]bool{"ustc-marathon.exe":true,"run.cmd":true,"uninstall.ps1":true,"config.toml":true,"config.example.toml":true,"README.md":true,"VERIFICATION.md":true,"LICENSE":true,"THIRD_PARTY_LICENSES.txt":true,".ustc-marathon.json":true,"runtime":true,"packages":true}
+	allowed:=map[string]bool{"ustc-marathon.exe":true,"run.cmd":true,"uninstall.ps1":true,"config.toml":true,"config.example.toml":true,"README.md":true,"docs":true,".ustc-marathon.json":true,"runtime":true,"packages":true}
 	entries,err:=os.ReadDir(root);if err!=nil{return err}
 	for _,entry:=range entries{if !allowed[entry.Name()]{return fmt.Errorf("发布目录包含范围外文件 %s，禁止卸载",entry.Name())}}
 	if !strings.EqualFold(filepath.Dir(configPath),root){return fmt.Errorf("卸载要求配置与 EXE 位于同一发布目录")}

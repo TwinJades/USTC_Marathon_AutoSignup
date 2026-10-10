@@ -6,7 +6,7 @@ if ($target -ne $scriptRoot -or $target -eq [System.IO.Path]::GetPathRoot($targe
 $item=Get-Item -LiteralPath $target -Force
 if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw '卸载目录包含链接。' }
 foreach ($name in @('.git','src')) { if (Test-Path -LiteralPath (Join-Path $target $name)) { throw '卸载目录包含源码或 Git 仓库。' } }
-$allowed=@('ustc-marathon.exe','run.cmd','uninstall.ps1','config.toml','config.example.toml','README.md','VERIFICATION.md','LICENSE','THIRD_PARTY_LICENSES.txt','.ustc-marathon.json','runtime','packages')
+$allowed=@('ustc-marathon.exe','run.cmd','uninstall.ps1','config.toml','config.example.toml','README.md','docs','.ustc-marathon.json','runtime','packages')
 foreach ($entry in Get-ChildItem -LiteralPath $target -Force) { if ($entry.Name -notin $allowed) { throw '卸载目录包含范围外文件。' } }
 $identity=Get-Content -Raw -LiteralPath (Join-Path $target '.ustc-marathon.json') | ConvertFrom-Json
 if ($identity.application -ne 'USTC_Marathon_AutoSignup' -or $identity.layout_version -ne 1) { throw '发布目录标识无效。' }

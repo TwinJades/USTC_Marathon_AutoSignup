@@ -25,13 +25,19 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 if (Test-Path -LiteralPath $executable) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($executable,'OnlyErrorDialogs','SendToRecycleBin') }
 Move-Item -LiteralPath $pendingExecutable -Destination $executable
 Copy-Item -LiteralPath (Join-Path $projectRoot 'src\config.example.toml') -Destination (Join-Path $releaseRoot 'config.example.toml')
-foreach ($name in @('README.md','LICENSE')) { Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination (Join-Path $releaseRoot $name) }
-Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\VERIFICATION.md') -Destination (Join-Path $releaseRoot 'VERIFICATION.md')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination (Join-Path $releaseRoot 'README.md')
+$licenseRoot=Join-Path $releaseRoot 'docs'
+New-Item -ItemType Directory -Force -Path $licenseRoot | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination (Join-Path $licenseRoot 'LICENSE')
+foreach($retired in @('LICENSE','THIRD_PARTY_LICENSES.txt','VERIFICATION.md','packages\SHA256.txt')) {
+    $retiredPath=Join-Path $releaseRoot $retired
+    if(Test-Path -LiteralPath $retiredPath){[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($retiredPath,'OnlyErrorDialogs','SendToRecycleBin')}
+}
 foreach ($name in @('run.cmd','uninstall.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $releaseRoot $name) }
 @{application='USTC_Marathon_AutoSignup';layout_version=1} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $releaseRoot '.ustc-marathon.json') -Encoding utf8NoBOM
 $moduleNames = @(& $goExecutable list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}}@{{.Version}}{{end}}{{end}}' . | Where-Object { $_ } | Sort-Object -Unique)
 if ($LASTEXITCODE -ne 0) { throw '读取依赖清单失败。' }
-$licenseFile = Join-Path $releaseRoot 'THIRD_PARTY_LICENSES.txt'
+$licenseFile = Join-Path $licenseRoot 'THIRD_PARTY_LICENSES.txt'
 $licenseText = [System.Collections.Generic.List[string]]::new()
 $licenseText.Add('Go:')
 $licenseText.Add((Get-Content -Raw -LiteralPath (Join-Path (& $goExecutable env GOROOT) 'LICENSE')))
@@ -47,15 +53,12 @@ for ($index = 0; $index -lt $moduleNames.Count; $index++) {
 $licenseText -join "`n" | Set-Content -LiteralPath $licenseFile -Encoding utf8NoBOM
 $packagesRoot = Join-Path $releaseRoot 'packages'
 New-Item -ItemType Directory -Force -Path $packagesRoot | Out-Null
-$archive = Join-Path $packagesRoot 'USTC_Marathon_AutoSignup_v2.0.1_windows_amd64.zip'
+$archive = Join-Path $packagesRoot 'USTC_Marathon_AutoSignup_v2.0.2_windows_amd64.zip'
 if (Test-Path -LiteralPath $archive) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($archive,'OnlyErrorDialogs','SendToRecycleBin') }
-$releaseFiles = @('ustc-marathon.exe','config.example.toml','README.md','VERIFICATION.md','LICENSE','run.cmd','uninstall.ps1','THIRD_PARTY_LICENSES.txt','.ustc-marathon.json') | ForEach-Object { Join-Path $releaseRoot $_ }
+$releaseFiles = @('ustc-marathon.exe','config.example.toml','README.md','docs\LICENSE','run.cmd','uninstall.ps1','docs\THIRD_PARTY_LICENSES.txt','.ustc-marathon.json') | ForEach-Object { Join-Path $releaseRoot $_ }
 Add-Type -AssemblyName System.IO.Compression
 $stream=[System.IO.FileStream]::new($archive,[System.IO.FileMode]::CreateNew)
 $zip=[System.IO.Compression.ZipArchive]::new($stream,[System.IO.Compression.ZipArchiveMode]::Create)
-try { foreach ($path in $releaseFiles) { [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$path,(Split-Path -Leaf $path),[System.IO.Compression.CompressionLevel]::Optimal) | Out-Null } } finally { $zip.Dispose(); $stream.Dispose() }
-$hashFile = Join-Path $packagesRoot 'SHA256.txt'
-$hashes = @($executable, $archive) | ForEach-Object { $entry = Get-FileHash -LiteralPath $_ -Algorithm SHA256; $entry.Hash.ToLowerInvariant() + '  ' + (Split-Path -Leaf $_) }
-$hashes | Set-Content -LiteralPath $hashFile -Encoding utf8NoBOM
+try { foreach ($path in $releaseFiles) { [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$path,([System.IO.Path]::GetRelativePath($releaseRoot,$path).Replace('\','/')),[System.IO.Compression.CompressionLevel]::Optimal) | Out-Null } } finally { $zip.Dispose(); $stream.Dispose() }
 Get-Item -LiteralPath $executable, $archive | Select-Object Name,@{Name='MiB';Expression={[math]::Round($_.Length / 1MB, 2)}},Length
 } finally { Pop-Location }

@@ -91,7 +91,7 @@ func TestLiveBrowsers(t *testing.T) {
 			if err:=b.launch(true);err!=nil {t.Fatal(err)}
 			if err:=b.wait(`() => location.origin==='https://young.ustc.edu.cn' && !!document.querySelector('#app')?.__vue__?.$store?.getters?.token`,nil);err!=nil {t.Fatal(err)}
 			if _,err:=s.account();err!=nil {t.Fatal(err)}
-			evidence:=map[string]any{"time":time.Now().In(china).Format(time.RFC3339),"browser":installed.Kind,"account_matches":account["username"]==c.Monitor.Username,"race_list_count":len(races),"own_records_count":len(own),"headless_session_reused":true,"targets":results}
+			evidence:=map[string]any{"time":time.Now().In(china).Format(time.RFC3339),"browser":installed.Kind,"account_matches":account["username"]==c.Monitor.Username,"race_list_count":len(races),"own_records_count":len(own),"headless_session_reused":true,"prefilled_department_valid":b.config.Profile.Department!=""&&b.config.Profile.Department==account["deptName"],"prefilled_sex_valid":(b.config.Profile.Sex=="男"||b.config.Profile.Sex=="女")&&b.config.Profile.Sex==account["sexName"],"targets":results}
 			data,err:=json.MarshalIndent(evidence,"","  ")
 			if err!=nil {t.Fatal(err)}
 			if err:=os.WriteFile(filepath.Join(runtimeRoot,"verification-go-"+installed.Kind+".json"),data,0600);err!=nil {t.Fatal(err)}

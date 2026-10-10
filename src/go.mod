@@ -3,6 +3,7 @@ module github.com/TwinJades/USTC_Marathon_AutoSignup
 go 1.27.2
 
 require (
+	github.com/UserExistsError/conpty v0.1.4
 	github.com/charmbracelet/huh v1.0.0
 	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
 	github.com/chromedp/chromedp v0.14.2
