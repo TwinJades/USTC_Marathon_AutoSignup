@@ -47,8 +47,8 @@ type Config struct {
 	Profile Profile `toml:"profile"`
 }
 
-var configPath = "config.toml"
-var runtimeRoot = "runtime"
+var configPath = filepath.Join("..", "release", "config.toml")
+var runtimeRoot = filepath.Join("..", "release", "runtime")
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 var phonePattern = regexp.MustCompile(`^1[3-9][0-9]{9}$`)
 var identityPattern = regexp.MustCompile(`^[1-9][0-9]{5}(18|19|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]$`)

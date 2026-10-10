@@ -12,6 +12,18 @@ import (
 
 const credentialService = "USTC Marathon AutoSignup"
 
+func deletePassword(username string) error {
+	if username==""{return nil}
+	for _,name:=range []string{credentialService,username+"@"+credentialService}{
+		credential,err:=wincred.GetGenericCredential(name)
+		if errors.Is(err,windows.ERROR_NOT_FOUND){continue}
+		if err!=nil{return fmt.Errorf("Windows 凭据读取失败")}
+		if credential.UserName!=username{continue}
+		if err:=credential.Delete();err!=nil{return fmt.Errorf("Windows 凭据清除失败")}
+	}
+	return nil
+}
+
 func readPassword(username string) (string, error) {
 	if username == "" { return "", nil }
 	for _, name := range []string{credentialService, username + "@" + credentialService} {

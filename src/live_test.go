@@ -96,8 +96,11 @@ func TestLiveBrowsers(t *testing.T) {
 			if err!=nil {t.Fatal(err)}
 			if err:=os.WriteFile(filepath.Join(runtimeRoot,"verification-go-"+installed.Kind+".json"),data,0600);err!=nil {t.Fatal(err)}
 			t.Log("实际网站查询及会话验证通过")
-			b.close()
-			if err:=b.ctx.Err();err==nil {t.Fatal("浏览器上下文没有关闭")}
+			closedContext:=b.ctx
+			if err:=b.close();err!=nil {t.Fatal(err)}
+			if err:=closedContext.Err();err==nil {t.Fatal("浏览器上下文没有关闭")}
+			remaining,err:=cacheTargets(runtimeRoot)
+			if err!=nil||len(remaining)!=0 {t.Fatal("浏览器退出后仍有可清理缓存",err)}
 		})
 	}
 }

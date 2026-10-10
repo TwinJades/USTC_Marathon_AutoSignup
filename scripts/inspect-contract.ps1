@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$sourcePath = Join-Path $projectRoot 'runtime\website-contract.js'
+$sourcePath = Join-Path $projectRoot 'release\runtime\verification\website-contract.js'
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $sourcePath) | Out-Null
 Invoke-WebRequest -Uri 'https://young.ustc.edu.cn/login/sc-wisdom-group-learning/static/js/chunk-0d0ec75b.13842608.js' -OutFile $sourcePath
 $source = Get-Content -Raw -LiteralPath $sourcePath
 if (-not $source.Contains('/item/scItem/queryApplyingMarathonItem')) { throw '前端资源结构发生变化。' }

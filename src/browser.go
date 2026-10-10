@@ -99,7 +99,8 @@ func sleep(ctx context.Context, d time.Duration) error {
 	select { case <-ctx.Done(): return ctx.Err(); case <-t.C: return nil }
 }
 
-func (b *Browser) close() {
+func (b *Browser) close() error {
+	started:=b.allocatorCancel!=nil
 	if b.ctx != nil && b.ctx.Err() == nil {
 		ctx, cancel := context.WithTimeout(b.ctx, 5*time.Second)
 		chromedp.Cancel(ctx)
@@ -107,14 +108,18 @@ func (b *Browser) close() {
 	}
 	if b.cancel != nil { b.cancel() }
 	if b.allocatorCancel != nil { b.allocatorCancel() }
+	b.ctx,b.cancel,b.allocatorCancel=nil,nil,nil
+	if started{return cleanCaches(runtimeRoot)}
+	return nil
 }
 
 func (b *Browser) launch(headless bool) error {
-	b.close()
+	if err:=b.close();err!=nil{return err}
 	profile, err := filepath.Abs(filepath.Join(runtimeRoot, "sessions", b.config.Browser.Kind))
 	if err != nil { return err }
 	opts := []chromedp.ExecAllocatorOption{chromedp.ExecPath(b.path), chromedp.UserDataDir(profile), chromedp.NoFirstRun, chromedp.NoDefaultBrowserCheck, chromedp.Flag("headless", headless), chromedp.Flag("disable-gpu", headless), chromedp.Flag("lang", "zh-CN"), chromedp.Flag("disk-cache-size", "1048576"), chromedp.Flag("media-cache-size", "1048576"), chromedp.Flag("disable-background-mode", true)}
 	opts = append(opts, chromedp.Flag("disable-background-networking", true), chromedp.Flag("disable-component-update", true), chromedp.Flag("disable-background-timer-throttling", true))
+	opts = append(opts,chromedp.Flag("disable-extensions",true),chromedp.Flag("disable-sync",true),chromedp.Flag("metrics-recording-only",true),chromedp.Flag("disable-features","OptimizationGuideModelDownloading,OptimizationGuidePredictionModelDownloads,OptimizationHintsFetching,OptimizationGuideOnDeviceModel,OptimizationTargetPrediction,OptimizationHints,PageContentAnnotations,TextSafetyClassifier,HistoryEmbeddings"))
 	if headless { opts = append(opts, chromedp.Flag("headless", "new")) }
 	if b.config.Browser.Kind == "edge" { opts = append(opts, chromedp.Flag("edge-skip-compat-layer-relaunch", true)) }
 	alloc, cancel := chromedp.NewExecAllocator(b.parent, opts...)

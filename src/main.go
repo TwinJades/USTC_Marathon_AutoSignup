@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"golang.org/x/term"
 )
 
-const version = "2.0.0"
+const version = "2.0.1"
 
 func selectBrowser(c *Config) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) { return fmt.Errorf("浏览器选择需要交互终端；也可以在配置中填写 browser.kind = \"chrome\" 或 \"edge\"") }
@@ -72,30 +73,40 @@ func usage() {
 	fmt.Println("validate               验证本地配置")
 	fmt.Println("credentials set/status 保存或检查 Windows 登录凭据")
 	fmt.Println("browser list/select    查看或选择本机 Chrome、Edge")
+	fmt.Println("storage / clean        查看空间占用或清理缓存")
+	fmt.Println("uninstall              清除本项目凭据并将运行目录移入回收站")
+	fmt.Println("无参数运行进入中文终端菜单。")
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string) (result error) {
 	flags := flag.NewFlagSet("ustc-marathon", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	path := flags.String("config", "config.toml", "TOML 配置文件路径")
+	path := flags.String("config", "", "TOML 配置文件路径；默认使用 EXE 所在目录")
 	ver := flags.Bool("version", false, "显示程序版本")
 	flags.Usage = usage
 	if err := flags.Parse(args); err != nil { if errors.Is(err, flag.ErrHelp) { return nil }; return fmt.Errorf("命令参数无效") }
 	if *ver { fmt.Println(version); return nil }
+	if *path == "" { executable, err := os.Executable(); if err != nil { return err }; *path = filepath.Join(filepath.Dir(executable), "config.toml") }
 	if err := setRoot(*path); err != nil { return err }
 	commands := flags.Args()
-	if len(commands) == 0 { usage(); return nil }
+	if len(commands) == 0 { if !term.IsTerminal(int(os.Stdin.Fd())) { usage(); return nil }; return menu(ctx) }
+	ctx, stop := signal.NotifyContext(ctx,os.Interrupt)
+	defer stop()
 	command := commands[0]
-	valid := map[string]bool{"login":true,"select":true,"check":true,"watch":true,"status":true,"validate":true,"credentials":true,"browser":true}
+	valid := map[string]bool{"login":true,"select":true,"check":true,"watch":true,"status":true,"validate":true,"credentials":true,"browser":true,"storage":true,"clean":true,"uninstall":true}
 	if !valid[command] { return fmt.Errorf("未知命令：%s", command) }
+	if command == "storage" { if len(commands)!=1 { return fmt.Errorf("storage 不接受额外参数") }; return showStorage() }
 	if command == "browser" && len(commands) == 2 && commands[1] == "list" {
 		for _, b := range installedBrowsers() { fmt.Println(b.Kind + "：" + b.Path) }
 		return nil
 	}
-	lock, err := lockInstance(runtimeRoot)
+	lock, err := acquireInstance(runtimeRoot,command=="uninstall")
 	if err != nil { return err }
 	defer lock.Close()
+	if command == "clean" { if len(commands)!=1 { return fmt.Errorf("clean 不接受额外参数") }; return cleanCaches(runtimeRoot) }
+	if command == "uninstall" { if len(commands)!=1 { return fmt.Errorf("uninstall 不接受额外参数") }; return uninstall() }
 	if command == "status" {
+		if len(commands)!=1{return fmt.Errorf("status 不接受额外参数")}
 		j, err := openJournal(runtimeRoot)
 		if err != nil { return err }
 		defer j.db.Close()
@@ -107,7 +118,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	c, err := loadConfig()
 	if err != nil { return err }
-	if command == "validate" { if err := c.requireWatch(); err != nil { return err }; fmt.Println("配置格式、目标比赛及报名资料检查通过。"); return nil }
+	if command == "validate" { if len(commands)!=1{return fmt.Errorf("validate 不接受额外参数")}; if err := c.requireWatch(); err != nil { return err }; fmt.Println("配置格式、目标比赛及报名资料检查通过。"); return nil }
 	if command == "browser" {
 		if len(commands) != 2 || commands[1] != "select" { return fmt.Errorf("用法：browser list 或 browser select") }
 		return selectBrowser(&c)
@@ -137,7 +148,7 @@ func run(ctx context.Context, args []string) error {
 	defer j.db.Close()
 	b, err := newBrowser(ctx, c, j)
 	if err != nil { return err }
-	defer b.close()
+	defer func(){ if err:=b.close();err!=nil {result=errors.Join(result,err)} }()
 	if err := b.login(command == "login"); err != nil { return err }
 	s := &Website{b,j}
 	switch command {
@@ -153,10 +164,9 @@ func run(ctx context.Context, args []string) error {
 }
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
+	ctx := context.Background()
 	if err := run(ctx, os.Args[1:]); err != nil {
-		if ctx.Err() != nil { fmt.Fprintln(os.Stderr, "运行已停止；待核查的提交记录已保留。") } else { fmt.Fprintln(os.Stderr, "运行终止："+err.Error()) }
+		if errors.Is(err,context.Canceled) { fmt.Fprintln(os.Stderr, "运行已停止；待核查的提交记录已保留。") } else { fmt.Fprintln(os.Stderr, "运行终止："+err.Error()) }
 		os.Exit(1)
 	}
 }

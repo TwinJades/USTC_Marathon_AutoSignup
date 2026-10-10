@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$downloadRoot = Join-Path $projectRoot 'runtime\downloads'
+$downloadRoot = Join-Path $projectRoot 'release\runtime\verification\downloads'
 New-Item -ItemType Directory -Path $downloadRoot -Force | Out-Null
 $releases = Invoke-RestMethod -Uri 'https://go.dev/dl/?mode=json&include=all'
 $release = $releases | Where-Object version -EQ 'go1.27.2'

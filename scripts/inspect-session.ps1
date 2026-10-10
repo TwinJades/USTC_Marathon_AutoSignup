@@ -1,7 +1,7 @@
 param([ValidateSet('chrome','edge')][string]$Browser = 'chrome')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$portLines = Get-Content -LiteralPath (Join-Path $projectRoot "runtime\sessions\$Browser\DevToolsActivePort")
+$portLines = Get-Content -LiteralPath (Join-Path $projectRoot "release\runtime\sessions\$Browser\DevToolsActivePort")
 $targets = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $portLines[0] + '/json/list')
 $page = @($targets | Where-Object { $_.type -eq 'page' -and ([uri]$_.url).Host -in @('young.ustc.edu.cn','id.ustc.edu.cn','passport.ustc.edu.cn') })
 if ($page.Count -ne 1) { throw '程序浏览器页面不唯一。' }

@@ -23,13 +23,20 @@ func accountKey(username string) string {
 }
 
 func lockInstance(root string) (*os.File, error) {
+	return acquireInstance(root,false)
+}
+
+func acquireInstance(root string, uninstalling bool) (*os.File, error) {
 	if err := os.MkdirAll(root, 0700); err != nil { return nil, err }
+	check:=func()error{if uninstalling{return nil};if _,err:=os.Stat(filepath.Join(root,"uninstalling"));err==nil{return fmt.Errorf("本项目正在卸载，禁止启动新操作")}else if !os.IsNotExist(err){return err};return nil}
+	if err:=check();err!=nil{return nil,err}
 	f, err := os.OpenFile(filepath.Join(root, "process.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil { return nil, err }
 	if err := windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &windows.Overlapped{}); err != nil {
 		f.Close()
 		return nil, fmt.Errorf("本项目已有程序运行，无法取得单实例锁")
 	}
+	if err:=check();err!=nil{f.Close();return nil,err}
 	return f, nil
 }
 

@@ -16,7 +16,7 @@ import (
 
 func testRoot(t *testing.T) string {
 	t.Helper()
-	base := filepath.Join("runtime", "local-go-verification")
+	base := filepath.Join(runtimeRoot, "verification", "local")
 	if err := os.MkdirAll(base, 0700); err != nil { t.Fatal(err) }
 	path, err := os.MkdirTemp(base, "本地验证-")
 	if err != nil { t.Fatal(err) }
