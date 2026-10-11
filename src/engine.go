@@ -9,7 +9,7 @@ func (s *Website) confirm(t Target) (Object, error) {
 	for attempt := 0; attempt < 3; attempt++ {
 		rows, err := s.own()
 		if err != nil { return nil, err }
-		okay, err := registered(rows[t.ID])
+		okay, err := s.registered(t, rows[t.ID])
 		if err != nil { return nil, err }
 		if okay { return rows[t.ID], nil }
 		if attempt < 2 { if err := sleep(s.b.parent, time.Second); err != nil { return nil, err } }
@@ -57,7 +57,7 @@ func (s *Website) check() error {
 		a, err := s.availability(t)
 		if err != nil { return err }
 		label := labels[a.phase(time.Now())]
-		reserved, err := registered(rows[t.ID])
+		reserved, err := s.registered(t, rows[t.ID])
 		if err != nil { return err }
 		if reserved {
 			okay, err := s.saved(t, account, rows[t.ID])
@@ -70,7 +70,7 @@ func (s *Website) check() error {
 	}
 	pending, err := s.j.pending(account["username"].(string))
 	if err != nil { return err }
-	for _, r := range pending { fmt.Printf("存在待核查记录：%s，阶段 %s。\n", r.Name, r.Phase) }
+	for _, r := range pending { label,err:=phaseLabel(r.Phase);if err!=nil{return err};fmt.Printf("本地待核查记录：%s，%s。\n", r.Name, label) }
 	return nil
 }
 
@@ -84,6 +84,20 @@ func (s *Website) watch() error {
 	if err != nil { return err }
 	pending, err := s.j.pending(username)
 	if err != nil { return err }
+	local, err := s.j.rows()
+	if err != nil { return err }
+	for _, t := range c.Targets {
+		okay, err := s.registered(t, rows[t.ID])
+		if err != nil { return err }
+		phase := "reserved"
+		for _, r := range local {
+			if r.Item == t.ID && r.Account == accountKey(username) {
+				if !okay && r.Phase == "complete" { return fmt.Errorf("本地完成记录与网站报名记录不一致") }
+				if r.Phase == "save_pending" { phase = r.Phase }
+			}
+		}
+		if okay { return s.complete(t, account, rows[t.ID], phase) }
+	}
 	if len(pending) == 1 {
 		r := pending[0]
 		matched:=false
@@ -101,16 +115,6 @@ func (s *Website) watch() error {
 		}
 		if !matched{return fmt.Errorf("未完成报名的比赛已从配置移除，请恢复目标后核查")}
 	}
-	local, err := s.j.rows()
-	if err != nil { return err }
-	for _, t := range c.Targets {
-		okay, err := registered(rows[t.ID])
-		if err != nil { return err }
-		if okay { return s.complete(t, account, rows[t.ID], "reserved") }
-		for _, r := range local {
-			if r.Item == t.ID && r.Account == accountKey(username) && r.Phase == "complete" { return fmt.Errorf("本地完成记录与网站报名记录不一致") }
-		}
-	}
 	fmt.Println("开始监测；按 Ctrl+C 停止后续检查和提交。")
 	for {
 		if err := stableConfig(c); err != nil { return err }
@@ -120,13 +124,13 @@ func (s *Website) watch() error {
 		if err != nil { return err }
 		ended, fullCount := 0, 0
 		for _, t := range c.Targets {
-			okay, err := registered(rows[t.ID])
+			okay, err := s.registered(t, rows[t.ID])
 			if err != nil { return err }
 			if okay { return s.complete(t, account, rows[t.ID], "reserved") }
 			a, err := s.availability(t)
 			if err != nil { return err }
 			phase := a.phase(time.Now())
-			fmt.Printf("%s %s：%d/%d，%s\n", time.Now().In(china).Format("15:04:05"), t.Name, a.Count, a.Capacity, map[string]string{"ended":"报名结束","waiting":"等待开始","full":"人数已满","available":"发现空余名额"}[phase])
+			fmt.Printf("%s %s：%d/%d，%s\n", time.Now().Format("15:04:05"), t.Name, a.Count, a.Capacity, map[string]string{"ended":"报名结束","waiting":"等待开始","full":"人数已满","available":"发现空余名额"}[phase])
 			if phase == "ended" { ended++; continue }
 			if phase != "available" { if phase == "full" { fullCount++ }; continue }
 			result, err := s.enter(t, username)
@@ -149,7 +153,7 @@ func (s *Website) confirmNotEntered(t Target,r Record,username string) error {
 	wait:=seconds(s.b.config.Monitor.RequestTimeout)
 	if wait<time.Minute{wait=time.Minute}
 	if time.Since(updated)<wait{return fmt.Errorf("此前报名提交仍在等待核查，稍后重新启动；记录已保留")}
-	if _,err:=s.detail(t);err!=nil{return err}
+	registered,err:=s.registered(t,nil);if err!=nil{return err};if registered{return fmt.Errorf("比赛已报名，需要核查本人记录")}
 	if err:=s.j.record(username,t,"not_entered");err!=nil{return err}
 	fmt.Println("网站多次查询确认尚未取得名额，已更新此前提交阶段，恢复监测。")
 	return nil

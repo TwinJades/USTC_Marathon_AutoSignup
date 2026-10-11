@@ -13,7 +13,7 @@ import (
 	"golang.org/x/term"
 )
 
-const version = "2.0.2"
+const version = "2.0.3"
 
 func selectBrowser(c *Config) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) { return fmt.Errorf("浏览器选择需要交互终端；也可以在配置中填写 browser.kind = \"chrome\" 或 \"edge\"") }
@@ -68,7 +68,7 @@ func usage() {
 	fmt.Println("select                 勾选比赛并设置优先级")
 	fmt.Println("check                  只读检查比赛与资料")
 	fmt.Println("watch                  监测并自动完成一场报名")
-	fmt.Println("status                 查看本地报名阶段")
+	fmt.Println("status                 查询网站报名记录及本地待核查阶段")
 	fmt.Println("validate               验证本地配置")
 	fmt.Println("credentials set/status 保存或检查 Windows 登录凭据")
 	fmt.Println("browser list/select    查看或选择本机 Chrome、Edge")
@@ -104,17 +104,6 @@ func run(ctx context.Context, args []string) (result error) {
 	defer lock.Close()
 	if command == "clean" { if len(commands)!=1 { return fmt.Errorf("clean 不接受额外参数") }; return cleanCaches(runtimeRoot) }
 	if command == "uninstall" { if len(commands)!=1 { return fmt.Errorf("uninstall 不接受额外参数") }; return uninstall() }
-	if command == "status" {
-		if len(commands)!=1{return fmt.Errorf("status 不接受额外参数")}
-		j, err := openJournal(runtimeRoot)
-		if err != nil { return err }
-		defer j.db.Close()
-		rows, err := j.rows()
-		if err != nil { return err }
-		if len(rows) == 0 { fmt.Println("尚无报名提交记录。") }
-		for _, r := range rows { fmt.Printf("%s（%s）：%s；%s\n", r.Name, r.Campus, r.Phase, r.Updated) }
-		return nil
-	}
 	if err:=ensureConfig();err!=nil{return err}
 	c, err := loadConfig()
 	if err != nil { return err }
@@ -144,7 +133,7 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil { return err }
 	defer func(){ if err:=b.close();err!=nil {result=errors.Join(result,err)} }()
 	if err := b.login(command == "login"); err != nil { return err }
-	for _,field:=range []struct{key,value string}{{"depart_name",b.config.Profile.Department},{"sex",b.config.Profile.Sex}}{if err:=updateConfig([]string{"profile",field.key},field.value);err!=nil{return err}}
+	if command!="status" { for _,field:=range []struct{key,value string}{{"depart_name",b.config.Profile.Department},{"sex",b.config.Profile.Sex}}{if err:=updateConfig([]string{"profile",field.key},field.value);err!=nil{return err}} }
 	if command=="watch"||command=="check"{if err:=b.config.requireWatch();err!=nil{return err}}
 	s := &Website{b,j}
 	switch command {
@@ -152,6 +141,7 @@ func run(ctx context.Context, args []string) (result error) {
 	case "select": return selectRaces(s)
 	case "check": return s.check()
 	case "watch": return s.watch()
+	case "status": return s.status()
 	}
 	return nil
 }

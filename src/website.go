@@ -201,14 +201,20 @@ func (s *Website) options(t Target) (map[string]string, error) {
 	return result, nil
 }
 
-func registered(row Object) (bool, error) {
-	if row == nil { return false, nil }
-	if fmt.Sprint(row["examineStatus"]) == "-3" { return false, fmt.Errorf("目标比赛已被网站终止") }
-	status, err := integer(row, "applyStatus")
+func (s *Website) registered(t Target, row Object) (bool, error) {
+	detail, err := s.detail(t)
 	if err != nil { return false, err }
-	if status == 28 { return true, nil }
-	if status == 26 { return false, nil }
-	return false, fmt.Errorf("本人报名状态未知，需要核查")
+	if fmt.Sprint(detail["examineStatus"]) == "-3" { return false, fmt.Errorf("目标比赛已被网站终止") }
+	flag, err := integer(detail, "booleanRegistration")
+	if err != nil { return false, err }
+	if flag != 0 && flag != 1 { return false, fmt.Errorf("网站报名标志未知：%s", t.Name) }
+	if row != nil {
+		actual, err := targetFrom(row)
+		if err != nil { return false, err }
+		if actual != t { return false, fmt.Errorf("本人报名记录的比赛编号、名称或校区不一致：%s", t.Name) }
+	}
+	if (flag == 1) != (row != nil) { return false, fmt.Errorf("网站报名标志与本人记录不一致：%s；停止操作并保留待核查记录", t.Name) }
+	return flag == 1, nil
 }
 
 func (s *Website) saved(t Target, account Object, row Object) (bool, error) {
@@ -301,7 +307,7 @@ func (s *Website) submission(t Target, username, stage, label, dialog, path stri
 func (s *Website) enter(t Target, username string) (Outcome, error) {
 	rows, err := s.own()
 	if err != nil { return unknown, err }
-	already, err := registered(rows[t.ID])
+	already, err := s.registered(t, rows[t.ID])
 	if err != nil { return unknown, err }
 	if already { return accepted, nil }
 	options, err := s.options(t)
@@ -315,7 +321,7 @@ func (s *Website) enter(t Target, username string) (Outcome, error) {
 	if a.phase(time.Now()) != "available" { return full, nil }
 	rows, err = s.own()
 	if err != nil { return unknown, err }
-	already, err = registered(rows[t.ID])
+	already, err = s.registered(t, rows[t.ID])
 	if err != nil { return unknown, err }
 	if already { return accepted, nil }
 	return s.submission(t, username, "enter_pending", "确定", "报名信息", "/item/scItemRegistration/enter/"+t.ID)

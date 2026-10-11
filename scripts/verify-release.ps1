@@ -2,22 +2,22 @@ $ErrorActionPreference='Stop'
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $releaseRoot=Join-Path $projectRoot 'release'
 $evidenceRoot=Join-Path $releaseRoot 'runtime\verification'
-$destination=Join-Path $evidenceRoot '中文解压验收'
+$destination=Join-Path $evidenceRoot '2.0.3中文解压验收'
 if (Test-Path -LiteralPath $destination) { throw '解压验收目录必须为空。' }
-$archive=Join-Path $releaseRoot 'packages\USTC_Marathon_AutoSignup_v2.0.2_windows_amd64.zip'
+$archive=Join-Path $releaseRoot 'packages\USTC_Marathon_AutoSignup_v2.0.3_windows_amd64.zip'
 Expand-Archive -LiteralPath $archive -DestinationPath $destination
-$expected=@('ustc-marathon.exe','config.example.toml','README.md','docs\LICENSE','run.cmd','uninstall.ps1','docs\THIRD_PARTY_LICENSES.txt','.ustc-marathon.json')
+$expected=@('ustc-marathon.exe','README.md','docs\LICENSE','uninstall.ps1','docs\THIRD_PARTY_LICENSES.txt','.ustc-marathon.json')
 $actual=@(Get-ChildItem -LiteralPath $destination -File -Force -Recurse | ForEach-Object {[System.IO.Path]::GetRelativePath($destination,$_.FullName)})
 if (Compare-Object $expected $actual) { throw '发布包内容不符合要求。' }
 $executable=Join-Path $destination 'ustc-marathon.exe'
 if ((Get-FileHash -LiteralPath $executable).Hash -ne (Get-FileHash -LiteralPath (Join-Path $releaseRoot 'ustc-marathon.exe')).Hash) { throw '解压后的 EXE 校验失败。' }
 Push-Location -LiteralPath $evidenceRoot
 try {
-    foreach ($arguments in @(@('--version'),@('--help'),@('browser','list'),@('storage'),@('status'))) {
+    foreach ($arguments in @(@('--version'),@('--help'),@('browser','list'),@('storage'))) {
         & $executable @arguments
         if ($LASTEXITCODE -ne 0) { throw '干净目录命令验证失败。' }
     }
-    Copy-Item -LiteralPath (Join-Path $destination 'config.example.toml') -Destination (Join-Path $destination 'config.toml')
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'src\config.example.toml') -Destination (Join-Path $destination 'config.toml')
     & $executable validate
     if ($LASTEXITCODE -eq 0) { throw '空白配置未被拒绝。' }
     $outsideFile=Join-Path $destination '其他文件.txt'

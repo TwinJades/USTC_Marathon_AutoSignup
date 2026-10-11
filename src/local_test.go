@@ -106,7 +106,6 @@ func TestFailFastData(t *testing.T) {
 	for _, data := range []Object{{}, {"registrationNum":true}, {"registrationNum":json.Number("1.2")}} {
 		if _, err := integer(data,"registrationNum"); err == nil { t.Fatal("无效人数未拒绝") }
 	}
-	if _,err:=registered(Object{"applyStatus":json.Number("999")});err==nil {t.Fatal("未知报名状态未拒绝")}
 	if _,err:=parseTime("invalid");err==nil {t.Fatal("无效时间未拒绝")}
 	if d:=seconds(0.00000000001);d<=0 {t.Fatal("正数间隔变成零")}
 }

@@ -26,7 +26,8 @@ func TestReleaseUninstall(t *testing.T){
 	root:=filepath.Join(testRoot(t),"中文卸载验收")
 	if err:=os.MkdirAll(root,0700);err!=nil{t.Fatal(err)}
 	for _,name:=range []string{"ustc-marathon.exe","uninstall.ps1",".ustc-marathon.json","config.example.toml"}{
-		data,err:=os.ReadFile(filepath.Join("..","release",name));if err!=nil{t.Fatal(err)}
+		path:=filepath.Join("..","release",name);if name=="config.example.toml"{path=name}
+		data,err:=os.ReadFile(path);if err!=nil{t.Fatal(err)}
 		if name=="config.example.toml"{name="config.toml"}
 		if err:=os.WriteFile(filepath.Join(root,name),data,0600);err!=nil{t.Fatal(err)}
 	}
@@ -40,7 +41,7 @@ func TestReleaseUninstall(t *testing.T){
 	defer func(){if err:=deletePassword(username);err!=nil{t.Error(err)}}()
 	executable:=filepath.Join(root,"ustc-marathon.exe")
 	version,err:=exec.Command(executable,"--version").CombinedOutput()
-	if err!=nil||string(version)!="2.0.2\n"{t.Fatal("中文目录 EXE 版本验证失败",err)}
+	if err!=nil||string(version)!="2.0.3\n"{t.Fatal("中文目录 EXE 版本验证失败",err)}
 	lock,err:=lockInstance(filepath.Join(root,"runtime"));if err!=nil{t.Fatal(err)}
 	if err:=exec.Command(executable,"uninstall").Run();err==nil{lock.Close();t.Fatal("卸载未拒绝其他运行实例")}
 	lock.Close()

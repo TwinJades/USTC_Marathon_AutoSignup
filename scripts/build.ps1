@@ -24,16 +24,15 @@ if ($LASTEXITCODE -ne 0) { throw '构建失败。' }
 Add-Type -AssemblyName Microsoft.VisualBasic
 if (Test-Path -LiteralPath $executable) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($executable,'OnlyErrorDialogs','SendToRecycleBin') }
 Move-Item -LiteralPath $pendingExecutable -Destination $executable
-Copy-Item -LiteralPath (Join-Path $projectRoot 'src\config.example.toml') -Destination (Join-Path $releaseRoot 'config.example.toml')
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination (Join-Path $releaseRoot 'README.md')
 $licenseRoot=Join-Path $releaseRoot 'docs'
 New-Item -ItemType Directory -Force -Path $licenseRoot | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination (Join-Path $licenseRoot 'LICENSE')
-foreach($retired in @('LICENSE','THIRD_PARTY_LICENSES.txt','VERIFICATION.md','packages\SHA256.txt')) {
+foreach($retired in @('LICENSE','THIRD_PARTY_LICENSES.txt','VERIFICATION.md','packages\SHA256.txt','run.cmd','config.example.toml')) {
     $retiredPath=Join-Path $releaseRoot $retired
     if(Test-Path -LiteralPath $retiredPath){[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($retiredPath,'OnlyErrorDialogs','SendToRecycleBin')}
 }
-foreach ($name in @('run.cmd','uninstall.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $releaseRoot $name) }
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall.ps1') -Destination (Join-Path $releaseRoot 'uninstall.ps1')
 @{application='USTC_Marathon_AutoSignup';layout_version=1} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $releaseRoot '.ustc-marathon.json') -Encoding utf8NoBOM
 $moduleNames = @(& $goExecutable list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}}@{{.Version}}{{end}}{{end}}' . | Where-Object { $_ } | Sort-Object -Unique)
 if ($LASTEXITCODE -ne 0) { throw '读取依赖清单失败。' }
@@ -53,9 +52,9 @@ for ($index = 0; $index -lt $moduleNames.Count; $index++) {
 $licenseText -join "`n" | Set-Content -LiteralPath $licenseFile -Encoding utf8NoBOM
 $packagesRoot = Join-Path $releaseRoot 'packages'
 New-Item -ItemType Directory -Force -Path $packagesRoot | Out-Null
-$archive = Join-Path $packagesRoot 'USTC_Marathon_AutoSignup_v2.0.2_windows_amd64.zip'
+$archive = Join-Path $packagesRoot 'USTC_Marathon_AutoSignup_v2.0.3_windows_amd64.zip'
 if (Test-Path -LiteralPath $archive) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($archive,'OnlyErrorDialogs','SendToRecycleBin') }
-$releaseFiles = @('ustc-marathon.exe','config.example.toml','README.md','docs\LICENSE','run.cmd','uninstall.ps1','docs\THIRD_PARTY_LICENSES.txt','.ustc-marathon.json') | ForEach-Object { Join-Path $releaseRoot $_ }
+$releaseFiles = @('ustc-marathon.exe','README.md','docs\LICENSE','uninstall.ps1','docs\THIRD_PARTY_LICENSES.txt','.ustc-marathon.json') | ForEach-Object { Join-Path $releaseRoot $_ }
 Add-Type -AssemblyName System.IO.Compression
 $stream=[System.IO.FileStream]::new($archive,[System.IO.FileMode]::CreateNew)
 $zip=[System.IO.Compression.ZipArchive]::new($stream,[System.IO.Compression.ZipArchiveMode]::Create)
