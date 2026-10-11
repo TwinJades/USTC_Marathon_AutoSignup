@@ -86,15 +86,20 @@ func (s *Website) watch() error {
 	if err != nil { return err }
 	if len(pending) == 1 {
 		r := pending[0]
+		matched:=false
 		for _, t := range c.Targets {
 			if t.ID != r.Item { continue }
 			if t.Name != r.Name || t.Campus != r.Campus { return fmt.Errorf("未完成报名记录与配置中的比赛不一致") }
 			row, err := s.confirm(t)
 			if err != nil { return err }
-			if row == nil { return fmt.Errorf("此前提交结果仍无法确认，停止全部监测并保留待核查记录") }
+			if row == nil {
+				if err:=s.confirmNotEntered(t,r,username);err!=nil{return err}
+				matched=true
+				break
+			}
 			return s.complete(t, account, row, r.Phase)
 		}
-		return fmt.Errorf("未完成报名的比赛已从配置移除，请恢复目标后核查")
+		if !matched{return fmt.Errorf("未完成报名的比赛已从配置移除，请恢复目标后核查")}
 	}
 	local, err := s.j.rows()
 	if err != nil { return err }
@@ -136,4 +141,16 @@ func (s *Website) watch() error {
 		if err := s.j.event("监测轮次完成", map[string]any{"targets": len(c.Targets), "ended": ended, "full": fullCount}); err != nil { return err }
 		if err := waitSeconds(s.b.parent, current.Monitor.Interval); err != nil { return err }
 	}
+}
+
+func (s *Website) confirmNotEntered(t Target,r Record,username string) error {
+	if r.Phase!="enter_pending"{return fmt.Errorf("此前取得名额或资料提交记录仍无法确认，停止监测并保留记录")}
+	updated,err:=time.Parse(time.RFC3339Nano,r.Updated);if err!=nil{return fmt.Errorf("待核查记录时间无效")}
+	wait:=seconds(s.b.config.Monitor.RequestTimeout)
+	if wait<time.Minute{wait=time.Minute}
+	if time.Since(updated)<wait{return fmt.Errorf("此前报名提交仍在等待核查，稍后重新启动；记录已保留")}
+	if _,err:=s.detail(t);err!=nil{return err}
+	if err:=s.j.record(username,t,"not_entered");err!=nil{return err}
+	fmt.Println("网站多次查询确认尚未取得名额，已更新此前提交阶段，恢复监测。")
+	return nil
 }

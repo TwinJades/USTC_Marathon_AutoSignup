@@ -139,7 +139,7 @@ func (b *Browser) launch(headless bool) error {
 	if err := chromedp.Run(b.ctx); err != nil { return fmt.Errorf("浏览器启动失败：%w", err) }
 	ctx, stop := b.requestContext()
 	defer stop()
-	if err := chromedp.Run(ctx, network.Enable(), network.SetCacheDisabled(true), chromedp.Navigate(marathonURL)); err != nil { return fmt.Errorf("浏览器启动或页面加载失败") }
+	if err := chromedp.Run(ctx, network.Enable(), network.SetCacheDisabled(true), chromedp.Navigate(marathonURL)); err != nil { return fmt.Errorf("页面导航或初始化失败：%w",err) }
 	return nil
 }
 
